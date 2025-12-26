@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
 import re
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
@@ -38,19 +39,29 @@ from lighteval.utils.imports import requires
 from lighteval.utils.language import Language
 from lighteval.utils.timeout import timeout
 
+logger = logging.getLogger(__name__)
+
 
 @requires("latex2sympy2_extended")
 def latex_normalization_config_default_factory():
-    from latex2sympy2_extended.latex2sympy2 import NormalizationConfig
+    try:
+        from latex2sympy2_extended.latex2sympy2 import NormalizationConfig
+    except Exception as exc:
+        logger.warning("Latex normalization disabled: %s", exc)
+        return None
 
-    return NormalizationConfig(
-        basic_latex=True,
-        units=True,
-        malformed_operators=True,
-        nits=True,
-        boxed="all",
-        equations=True,
-    )
+    try:
+        return NormalizationConfig(
+            basic_latex=True,
+            units=True,
+            malformed_operators=True,
+            nits=True,
+            boxed="all",
+            equations=True,
+        )
+    except Exception as exc:
+        logger.warning("Latex normalization config failed: %s", exc)
+        return None
 
 
 @dataclass(frozen=True)
@@ -464,9 +475,6 @@ def convert_to_pct(number: Number):
 def extract_latex(
     match: re.Match, latex_config: LatexExtractionConfig, timeout_seconds: int
 ) -> tuple[sympy.Expr | str | None, str]:
-    from latex2sympy2_extended.latex2sympy2 import FiniteSet as L2SFiniteSet
-    from latex2sympy2_extended.latex2sympy2 import normalize_latex
-
     latex_exprs = []
     latex_strs = []
 
@@ -484,6 +492,18 @@ def extract_latex(
     ]
 
     all_latex = list(filter(lambda x: x is not None, [first_latex_group] + next_latex_groups))
+
+    if latex_config.normalization_config is None:
+        latex_strs = [val for val, _ in all_latex]
+        return None, " and ".join(latex_strs) if latex_strs else ""
+
+    try:
+        from latex2sympy2_extended.latex2sympy2 import FiniteSet as L2SFiniteSet
+        from latex2sympy2_extended.latex2sympy2 import normalize_latex
+    except Exception as exc:
+        logger.warning("Latex parsing disabled: %s", exc)
+        latex_strs = [val for val, _ in all_latex]
+        return None, " and ".join(latex_strs) if latex_strs else ""
 
     for latex, name in all_latex:
         name_without_prefix = name.split("_")[0]

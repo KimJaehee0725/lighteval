@@ -1,0 +1,81 @@
+[1mdiff --git a/src/lighteval/metrics/utils/extractive_match_utils.py b/src/lighteval/metrics/utils/extractive_match_utils.py[m
+[1mindex da0d718..542446f 100644[m
+[1m--- a/src/lighteval/metrics/utils/extractive_match_utils.py[m
+[1m+++ b/src/lighteval/metrics/utils/extractive_match_utils.py[m
+[36m@@ -20,6 +20,7 @@[m
+ # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE[m
+ # SOFTWARE.[m
+ [m
+[32m+[m[32mimport logging[m
+ import re[m
+ from dataclasses import dataclass, field, replace[m
+ from functools import lru_cache[m
+[36m@@ -38,19 +39,29 @@[m [mfrom lighteval.utils.imports import requires[m
+ from lighteval.utils.language import Language[m
+ from lighteval.utils.timeout import timeout[m
+ [m
+[32m+[m[32mlogger = logging.getLogger(__name__)[m
+[32m+[m
+ [m
+ @requires("latex2sympy2_extended")[m
+ def latex_normalization_config_default_factory():[m
+[31m-    from latex2sympy2_extended.latex2sympy2 import NormalizationConfig[m
+[31m-[m
+[31m-    return NormalizationConfig([m
+[31m-        basic_latex=True,[m
+[31m-        units=True,[m
+[31m-        malformed_operators=True,[m
+[31m-        nits=True,[m
+[31m-        boxed="all",[m
+[31m-        equations=True,[m
+[31m-    )[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        from latex2sympy2_extended.latex2sympy2 import NormalizationConfig[m
+[32m+[m[32m    except Exception as exc:[m
+[32m+[m[32m        logger.warning("Latex normalization disabled: %s", exc)[m
+[32m+[m[32m        return None[m
+[32m+[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        return NormalizationConfig([m
+[32m+[m[32m            basic_latex=True,[m
+[32m+[m[32m            units=True,[m
+[32m+[m[32m            malformed_operators=True,[m
+[32m+[m[32m            nits=True,[m
+[32m+[m[32m            boxed="all",[m
+[32m+[m[32m            equations=True,[m
+[32m+[m[32m        )[m
+[32m+[m[32m    except Exception as exc:[m
+[32m+[m[32m        logger.warning("Latex normalization config failed: %s", exc)[m
+[32m+[m[32m        return None[m
+ [m
+ [m
+ @dataclass(frozen=True)[m
+[36m@@ -464,9 +475,6 @@[m [mdef convert_to_pct(number: Number):[m
+ def extract_latex([m
+     match: re.Match, latex_config: LatexExtractionConfig, timeout_seconds: int[m
+ ) -> tuple[sympy.Expr | str | None, str]:[m
+[31m-    from latex2sympy2_extended.latex2sympy2 import FiniteSet as L2SFiniteSet[m
+[31m-    from latex2sympy2_extended.latex2sympy2 import normalize_latex[m
+[31m-[m
+     latex_exprs = [][m
+     latex_strs = [][m
+ [m
+[36m@@ -485,6 +493,18 @@[m [mdef extract_latex([m
+ [m
+     all_latex = list(filter(lambda x: x is not None, [first_latex_group] + next_latex_groups))[m
+ [m
+[32m+[m[32m    if latex_config.normalization_config is None:[m
+[32m+[m[32m        latex_strs = [val for val, _ in all_latex][m
+[32m+[m[32m        return None, " and ".join(latex_strs) if latex_strs else ""[m
+[32m+[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        from latex2sympy2_extended.latex2sympy2 import FiniteSet as L2SFiniteSet[m
+[32m+[m[32m        from latex2sympy2_extended.latex2sympy2 import normalize_latex[m
+[32m+[m[32m    except Exception as exc:[m
+[32m+[m[32m        logger.warning("Latex parsing disabled: %s", exc)[m
+[32m+[m[32m        latex_strs = [val for val, _ in all_latex][m
+[32m+[m[32m        return None, " and ".join(latex_strs) if latex_strs else ""[m
+[32m+[m
+     for latex, name in all_latex:[m
+         name_without_prefix = name.split("_")[0][m
+         group_name = name.split("_")[1] if len(name.split("_")) > 1 else None[m
